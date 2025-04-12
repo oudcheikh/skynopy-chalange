@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    restart: always
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-user}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-pass}
+    ports:
+      - "15672:15672"
+      - "5672:5672"
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
+  modem:
+    build: ./modem_simulator
+    restart: on-failure
+    ports:
+      - "1234:1234"  # TM - telemetry downlink
+      - "4321:4321"  # TC - telecommand uplink
+      - "8000:8000"  # API - metrics
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/metrics/status"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  pipeline:
+    build: ./data_pipeline
+    restart: on-failure
+    environment:
+      AMQP_URL: amqp://${RABBITMQ_USER:-user}:${RABBITMQ_PASS:-pass}@rabbitmq
+    depends_on:
+      modem:
+        condition: service_healthy
+
+  client:
+    build: ./client_script
+    restart: on-failure
+    environment:
+      AMQP_URL: amqp://${RABBITMQ_USER:-user}:${RABBITMQ_PASS:-pass}@rabbitmq
+    stdin_open: true
+    tty: true
+    depends_on:
+      pipeline:
+        condition: service_started
