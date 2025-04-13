@@ -1,8 +1,12 @@
 import asyncio
 import aio_pika
 import os
+from typing import AsyncGenerator
 
-async def forward_tm():
+async def forward_tm() -> None:
+    """
+    Forward telemetry data from the modem to RabbitMQ.
+    """
     connection = await aio_pika.connect_robust(os.getenv("AMQP_URL", "amqp://guest:guest@rabbitmq/"))
     channel = await connection.channel()
     exchange = await channel.declare_exchange("tm", aio_pika.ExchangeType.FANOUT)
@@ -11,7 +15,10 @@ async def forward_tm():
         data = await reader.read(1024)
         await exchange.publish(aio_pika.Message(body=data), routing_key="")
 
-async def forward_tc():
+async def forward_tc() -> None:
+    """
+    Forward telecommand data from RabbitMQ to the modem.
+    """
     connection = await aio_pika.connect_robust(os.getenv("AMQP_URL", "amqp://guest:guest@rabbitmq/"))
     channel = await connection.channel()
     queue = await channel.declare_queue("tc")
@@ -26,7 +33,10 @@ async def forward_tc():
             writer.close()
             await writer.wait_closed()
 
-async def main():
+async def main() -> None:
+    """
+    Main function to run both forward_tm and forward_tc concurrently.
+    """
     await asyncio.gather(forward_tm(), forward_tc())
 
 if __name__ == "__main__":

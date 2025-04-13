@@ -1,2 +1,6 @@
 aio_pika
 aiohttp
+pytest
+asyncio
+fastapi
+httpx
